@@ -237,7 +237,7 @@ namespace RAA_Level2
             public static List<List<string>> ReadExcelToList(string filePath)
             {
                 var data = new List<List<string>>();
-                ExcelPackage.License.SetNonCommercialOrganization("JPW");
+                ExcelPackage.License.SetNonCommercialOrganization("JPW"); // Licence for EPPlus
 
                 using (var package = new ExcelPackage(new FileInfo(filePath)))
                 {
