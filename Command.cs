@@ -10,12 +10,15 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using OfficeOpenXml;
+
 
 #endregion
 
 namespace RAA_Level2
 {
     [Transaction(TransactionMode.Manual)]
+
     public class Command : IExternalCommand
     {
         public Result Execute(
@@ -109,7 +112,8 @@ namespace RAA_Level2
             // List<string>[] csvData = ReadCSVFile(filePath);
             // With this line:
 
-            List<string[]> csvData = ReadCSVFile(filePath);
+            //List<string[]> csvData = ReadCSVFile(filePath);
+            List<List<string>> csvData = ExcelReader.ReadExcelToList(filePath);
             csvData.RemoveAt(0); // Remove header row
 
             //int rowCount = csvData.Count;
@@ -135,41 +139,46 @@ namespace RAA_Level2
 
             List<Level> createdLevels = new List<Level>();
 
-            if (projectUnits == "feet")
+
+            using (Transaction tx = new Transaction(doc, "Create Levels"))
             {
-                using (Transaction tx = new Transaction(doc, "Create Levels in feet"))
+                tx.Start();
+                for (int i = 0; i < levelNames.Count; i++)
                 {
-                    tx.Start();
-                    for (int i = 0; i < levelNames.Count; i++)
+                    string lvlName = levelNames[i];
+                    double lvlElev = levelElevsFT[i];
+                    double lvlElevM = levelElevsM[i];
+                    double lvlElevFT = lvlElev; // default to feet
+                    if (projectUnits == "mm")
                     {
-                        string lvlName = levelNames[i];
-                        double lvlElev = levelElevsFT[i];
-                        Level newLevel = Level.Create(doc, lvlElev);
-                        newLevel.Name = lvlName;
-                        createdLevels.Add(newLevel);
+                        lvlElevFT = lvlElevM * 3.2808399; // convert m to feet to create levels
                     }
-                    tx.Commit();
-                    tx.Dispose();
+                    Level newLevel = Level.Create(doc, lvlElevFT);
+                    newLevel.Name = lvlName;
+                    createdLevels.Add(newLevel);
                 }
+                tx.Commit();
+                tx.Dispose();
             }
-            else if (projectUnits == "mm")
-            {
-                using (Transaction tx = new Transaction(doc, "Create Levels in mm"))
-                {
-                    tx.Start();
-                    for (int i = 0; i < levelNames.Count; i++)
-                    {
-                        string lvlName = levelNames[i];
-                        double lvlElevM = levelElevsM[i];
-                        double lvlElevFT = lvlElevM * 3.2808399; // convert m to feet to create levels
-                        Level newLevel = Level.Create(doc, lvlElevFT);
-                        newLevel.Name = lvlName;
-                        createdLevels.Add(newLevel);
-                    }
-                    tx.Commit();
-                    tx.Dispose();
-                }
-            }
+
+            //else if (projectUnits == "mm")
+            //{
+            //    using (Transaction tx = new Transaction(doc, "Create Levels in mm"))
+            //    {
+            //        tx.Start();
+            //        for (int i = 0; i < levelNames.Count; i++)
+            //        {
+            //            string lvlName = levelNames[i];
+            //            double lvlElevM = levelElevsM[i];
+            //            double lvlElevFT = lvlElevM * 3.2808399; // convert m to feet to create levels
+            //            Level newLevel = Level.Create(doc, lvlElevFT);
+            //            newLevel.Name = lvlName;
+            //            createdLevels.Add(newLevel);
+            //        }
+            //        tx.Commit();
+            //        tx.Dispose();
+            //    }
+            //}
 
             TaskDialog.Show("Levels Created", $"Created {createdLevels.Count} levels.");
 
@@ -179,6 +188,11 @@ namespace RAA_Level2
 
             return Result.Succeeded;
         }
+
+        //private List<string> ListFromCSV(List<List<string>> csvData, int v)
+        //{
+        //    throw new NotImplementedException();
+        //}
 
         public static String GetMethod()
         {
@@ -190,10 +204,10 @@ namespace RAA_Level2
         // The original method signature and implementation are incorrect for the intended use.
         // The method should return List<string> instead of List<string[]> and accept List<string[]> as input.
 
-        public static List<string> ListFromCSV(List<string[]> csvList, int n)
+        public static List<string> ListFromCSV(List<List<string>> csvList, int n)
         {
             var nthElements = csvList
-                .Where(sublist => sublist.Length > n)
+                .Where(sublist => sublist.Count > n)
                 .Select(sublist => sublist[n])
                 .ToList();
             return nthElements;
@@ -238,7 +252,44 @@ namespace RAA_Level2
             return dataList;
         }
 
-        public class CreatePlanViews
+        //public static List<string[]> ReadExcelFile(string filepath)
+        //{
+        //    // Placeholder for Excel reading logic
+        //    // Implement Excel reading using a library like EPPlus, ClosedXML, or Interop
+        //    List<string[]> dataList = new List<string[]>();
+        //    // Example: dataList.Add(new string[] { "Level 1", "0", "0" });
+        //    return dataList;
+        //}
+
+        public class ExcelReader
+        {
+            public static List<List<string>> ReadExcelToList(string filePath)
+            {
+                var data = new List<List<string>>();
+                ExcelPackage.License.SetNonCommercialOrganization("JPW");
+
+                using (var package = new ExcelPackage(new FileInfo(filePath)))
+                {
+                    var worksheet = package.Workbook.Worksheets[0]; // First worksheet
+                    int rows = worksheet.Dimension.Rows;
+                    int columns = worksheet.Dimension.Columns;
+
+                    for (int i = 1; i <= rows; i++)
+                    {
+                        var row = new List<string>();
+                        for (int j = 1; j <= columns; j++)
+                        {
+                            row.Add(worksheet.Cells[i, j].Text);
+                        }
+                        data.Add(row);
+                    }
+                }
+                return data;
+            }
+        }
+
+
+    public class CreatePlanViews
         {
             public static void CreateViews(Document doc, List<Level> levels, bool floorPlan, bool ceilingPlan)
             {
@@ -246,8 +297,8 @@ namespace RAA_Level2
                 {
                     tx.Start();
 
-                    int plansCreated = 0;
-                    int ceilingPlansCreated = 0;
+                    List<ViewPlan> createdPlanViews = new List<ViewPlan>();
+                    List<ViewPlan> createdCeilingViews = new List<ViewPlan>();
 
                     foreach (Level level in levels)
                     {
@@ -273,8 +324,8 @@ namespace RAA_Level2
                                 ViewFamilyType viewFamilyType = GetViewFamilyType(doc, ViewFamily.FloorPlan);
                                 if (viewFamilyType != null)
                                 {
-                                    ViewPlan.Create(doc, viewFamilyType.Id, level.Id);
-                                    plansCreated++;
+                                    ViewPlan newViewPlan = ViewPlan.Create(doc, viewFamilyType.Id, level.Id);
+                                    createdPlanViews.Add(newViewPlan);
                                 }
                             }
                             if (ceilingPlan)
@@ -282,14 +333,14 @@ namespace RAA_Level2
                                 ViewFamilyType viewFamilyType = GetViewFamilyType(doc, ViewFamily.CeilingPlan);
                                 if (viewFamilyType != null)
                                 {
-                                    ViewPlan.Create(doc, viewFamilyType.Id, level.Id);
-                                    ceilingPlansCreated++;
+                                    ViewPlan newViewCeiling = ViewPlan.Create(doc, viewFamilyType.Id, level.Id);
+                                    createdCeilingViews.Add(newViewCeiling);
                                 }
                             }
                         }
                     }
 
-                    TaskDialog.Show("Plan Views Created", $"Created {plansCreated} floor plans and {ceilingPlansCreated} ceiling plans.");
+                    TaskDialog.Show("Plan Views Created", $"Created {createdPlanViews.Count} floor plans and {createdCeilingViews.Count} ceiling plans.");
 
                     tx.Commit();
                     tx.Dispose();
