@@ -44,9 +44,11 @@ namespace RAA_Level2
         private void btnSelect_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog openFile = new OpenFileDialog();
-            openFile.InitialDirectory = @"C:\";
+            openFile.Multiselect = false;
+            //openFile.InitialDirectory = @"C:\"; // or use "C:\\"
             //openFile.Filter = "csv files (*.csv) |*.csv";
             //openFile.Title = "Select a CSV file";
+            openFile.RestoreDirectory = true;
             openFile.Filter = "Excel files (*.xlsx;*.xls) |*.xlsx;*.xls";
             openFile.Title = "Select an Excel file";
 
