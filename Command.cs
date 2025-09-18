@@ -63,12 +63,12 @@ namespace RAA_Level2
 
             // test output
 
-            string msg = "File Path: " + filePath + "\n" +
-                         "Project Units: " + projectUnits + "\n" +
-                         "Create Floor Plans: " + floorPlans + "\n" +
-                         "Create Ceiling Plans: " + ceilingPlans + "\n" +
-                         "Create Sheets: " + createSheets + "\n";
-            TaskDialog.Show("Project Setup", msg);
+            //string msg = "File Path: " + filePath + "\n" +
+            //             "Project Units: " + projectUnits + "\n" +
+            //             "Create Floor Plans: " + floorPlans + "\n" +
+            //             "Create Ceiling Plans: " + ceilingPlans + "\n" +
+            //             "Create Sheets: " + createSheets + "\n";
+            //TaskDialog.Show("Project Setup", msg);
 
             // set project units
 
