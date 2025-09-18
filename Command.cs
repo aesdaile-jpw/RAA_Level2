@@ -7,6 +7,8 @@ using Autodesk.Revit.UI.Selection;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Reflection;
 
 #endregion
@@ -66,6 +68,8 @@ namespace RAA_Level2
 
             TaskDialog.Show("Project Setup", msg);
 
+            // set project units
+
             if (projectUnits == "mm")
             {
                 using (Transaction tx = new Transaction(doc, "Set Project Units to mm"))
@@ -85,6 +89,7 @@ namespace RAA_Level2
                     doc.SetUnits(units);
 
                     tx.Commit();
+                    tx.Dispose();
                 }
             }
             else if (projectUnits == "feet")
@@ -99,8 +104,80 @@ namespace RAA_Level2
                     doc.SetUnits(units);
 
                     tx.Commit();
+                    tx.Dispose();
                 }
             }
+
+            // Replace this line:
+            // List<string>[] csvData = ReadCSVFile(filePath);
+            // With this line:
+
+            List<string[]> csvData = ReadCSVFile(filePath);
+
+            csvData.RemoveAt(0); // Remove header row
+
+            int rowCount = csvData.Count;
+
+            TaskDialog.Show("CSV Data", $"Number of data rows: {rowCount}");
+
+            // create lists from csvData
+
+            List<string> levelNames = ListFromCSV(csvData, 0);
+
+            List<string> levelElevationsFT = ListFromCSV(csvData, 1); 
+
+            List<string> levelElevationsM = ListFromCSV(csvData, 2);
+
+            TaskDialog.Show("Lists", GetMethod() + "\n" +
+                $"Level Names: {string.Join(", ", levelNames)}\n" +
+                $"Level Elevations (ft): {string.Join(", ", levelElevationsFT)}\n" +
+                $"Level Elevations (m): {string.Join(", ", levelElevationsM)}");
+
+            // convert string lists to double lists for heights
+
+            List<double> levelElevsFT = ListStringToDouble(levelElevationsFT);
+
+            List<double> levelElevsM = ListStringToDouble(levelElevationsM);
+
+            // Create levels FT
+
+            if (projectUnits == "feet")
+            {
+                using (Transaction tx = new Transaction(doc, "Create Levels in feet"))
+                {
+                    tx.Start();
+                    for (int i = 0; i < levelNames.Count; i++)
+                    {
+                        string lvlName = levelNames[i];
+                        double lvlElev = levelElevsFT[i];
+                        Level newLevel = Level.Create(doc, lvlElev);
+                        newLevel.Name = lvlName;
+                    }
+                    tx.Commit();
+                    tx.Dispose();
+                }
+            }
+            else if (projectUnits == "mm")
+            {
+                using (Transaction tx = new Transaction(doc, "Create Levels in mm"))
+                {
+                    tx.Start();
+                    for (int i = 0; i < levelNames.Count; i++)
+                    {
+                        string lvlName = levelNames[i];
+                        double lvlElevM = levelElevsM[i];
+                        double lvlElevFT = lvlElevM * 3.2808399; // convert m to feet to create levels
+                        Level newLevel = Level.Create(doc, lvlElevFT);
+                        newLevel.Name = lvlName;
+                    }
+                    tx.Commit();
+                    tx.Dispose();
+                }
+            }
+
+
+
+
 
 
             return Result.Succeeded;
@@ -110,6 +187,58 @@ namespace RAA_Level2
         {
             var method = MethodBase.GetCurrentMethod().DeclaringType?.FullName;
             return method;
+        }
+
+        // Replace the ListFromCSV method with the correct implementation.
+        // The original method signature and implementation are incorrect for the intended use.
+        // The method should return List<string> instead of List<string[]> and accept List<string[]> as input.
+
+        public static List<string> ListFromCSV(List<string[]> csvList, int n)
+        {
+            var nthElements = csvList
+                .Where(sublist => sublist.Length > n)
+                .Select(sublist => sublist[n])
+                .ToList();
+            return nthElements;
+        }
+
+        public static List<double> ListStringToDouble(List<string> stringList)
+        {
+            List<double> doubleList = new List<double>();
+            foreach (string str in stringList)
+            {
+                if (double.TryParse(str, out double value))
+                {
+                    doubleList.Add(value);
+                }
+                else
+                {
+                    // Handle parsing error if necessary
+                    doubleList.Add(0); // or throw an exception, or skip, etc.
+                }
+            }
+            return doubleList;
+        }
+
+        public static List<string[]> ReadCSVFile(string filepath)
+        {
+            //create list for sheet information
+            List<string[]> dataList = new List<string[]>();
+
+            using (var myReader = new StreamReader(filepath))
+            {
+                while (!myReader.EndOfStream)
+                {
+                    var line = myReader.ReadLine();
+                    var values = line.Split(',');
+
+                    dataList.Add(values);
+                }
+
+                myReader.Close();
+            }
+
+            return dataList;
         }
     }
 }
