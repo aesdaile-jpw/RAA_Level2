@@ -52,21 +52,18 @@ namespace RAA_Level2
             // get data from form
 
             string filePath = currentForm.GetFilePath();
-
             string projectUnits = currentForm.GetUnits();
-
             bool floorPlans = currentForm.GetPlansCreate();
-
             bool ceilingPlans = currentForm.GetCeilingPlansCreate();
 
             // test output
 
-            string msg = "File Path: " + filePath + "\n" +
-                         "Project Units: " + projectUnits + "\n" +
-                         "Create Floor Plans: " + floorPlans + "\n" +
-                         "Create Ceiling Plans: " + ceilingPlans + "\n";
+            //string msg = "File Path: " + filePath + "\n" +
+            //             "Project Units: " + projectUnits + "\n" +
+            //             "Create Floor Plans: " + floorPlans + "\n" +
+            //             "Create Ceiling Plans: " + ceilingPlans + "\n";
 
-            TaskDialog.Show("Project Setup", msg);
+            //TaskDialog.Show("Project Setup", msg);
 
             // set project units
 
@@ -113,33 +110,30 @@ namespace RAA_Level2
             // With this line:
 
             List<string[]> csvData = ReadCSVFile(filePath);
-
             csvData.RemoveAt(0); // Remove header row
 
-            int rowCount = csvData.Count;
-
-            TaskDialog.Show("CSV Data", $"Number of data rows: {rowCount}");
+            //int rowCount = csvData.Count;
+            //TaskDialog.Show("CSV Data", $"Number of data rows: {rowCount}");
 
             // create lists from csvData
 
             List<string> levelNames = ListFromCSV(csvData, 0);
-
-            List<string> levelElevationsFT = ListFromCSV(csvData, 1); 
-
+            List<string> levelElevationsFT = ListFromCSV(csvData, 1);
             List<string> levelElevationsM = ListFromCSV(csvData, 2);
 
-            TaskDialog.Show("Lists", GetMethod() + "\n" +
-                $"Level Names: {string.Join(", ", levelNames)}\n" +
-                $"Level Elevations (ft): {string.Join(", ", levelElevationsFT)}\n" +
-                $"Level Elevations (m): {string.Join(", ", levelElevationsM)}");
+            //TaskDialog.Show("Lists", GetMethod() + "\n" +
+            //    $"Level Names: {string.Join(", ", levelNames)}\n" +
+            //    $"Level Elevations (ft): {string.Join(", ", levelElevationsFT)}\n" +
+            //    $"Level Elevations (m): {string.Join(", ", levelElevationsM)}");
 
             // convert string lists to double lists for heights
 
             List<double> levelElevsFT = ListStringToDouble(levelElevationsFT);
-
             List<double> levelElevsM = ListStringToDouble(levelElevationsM);
 
             // Create levels FT
+
+            List<Level> createdLevels = new List<Level>();
 
             if (projectUnits == "feet")
             {
@@ -152,6 +146,7 @@ namespace RAA_Level2
                         double lvlElev = levelElevsFT[i];
                         Level newLevel = Level.Create(doc, lvlElev);
                         newLevel.Name = lvlName;
+                        createdLevels.Add(newLevel);
                     }
                     tx.Commit();
                     tx.Dispose();
@@ -169,16 +164,18 @@ namespace RAA_Level2
                         double lvlElevFT = lvlElevM * 3.2808399; // convert m to feet to create levels
                         Level newLevel = Level.Create(doc, lvlElevFT);
                         newLevel.Name = lvlName;
+                        createdLevels.Add(newLevel);
                     }
                     tx.Commit();
                     tx.Dispose();
                 }
             }
 
+            TaskDialog.Show("Levels Created", $"Created {createdLevels.Count} levels.");
 
+            // Create views from Levels
 
-
-
+            CreatePlanViews.CreateViews(doc, createdLevels, floorPlans, ceilingPlans);
 
             return Result.Succeeded;
         }
@@ -239,6 +236,81 @@ namespace RAA_Level2
             }
 
             return dataList;
+        }
+
+        public class CreatePlanViews
+        {
+            public static void CreateViews(Document doc, List<Level> levels, bool floorPlan, bool ceilingPlan)
+            {
+                using (Transaction tx = new Transaction(doc, "Create Plan Views"))
+                {
+                    tx.Start();
+
+                    int plansCreated = 0;
+                    int ceilingPlansCreated = 0;
+
+                    foreach (Level level in levels)
+                    {
+                        // Check if a plan view already exists for the level
+                        bool viewExists = false;
+                        FilteredElementCollector collector = new FilteredElementCollector(doc)
+                            .OfClass(typeof(ViewPlan));
+
+                        foreach (ViewPlan view in collector)
+                        {
+                            if (view.GenLevel != null && view.GenLevel.Id == level.Id)
+                            {
+                                viewExists = true;
+                                break;
+                            }
+                        }
+
+                        // If no plan view exists, create one
+                        if (!viewExists)
+                        {
+                            if (floorPlan)
+                            {
+                                ViewFamilyType viewFamilyType = GetViewFamilyType(doc, ViewFamily.FloorPlan);
+                                if (viewFamilyType != null)
+                                {
+                                    ViewPlan.Create(doc, viewFamilyType.Id, level.Id);
+                                    plansCreated++;
+                                }
+                            }
+                            if (ceilingPlan)
+                            {
+                                ViewFamilyType viewFamilyType = GetViewFamilyType(doc, ViewFamily.CeilingPlan);
+                                if (viewFamilyType != null)
+                                {
+                                    ViewPlan.Create(doc, viewFamilyType.Id, level.Id);
+                                    ceilingPlansCreated++;
+                                }
+                            }
+                        }
+                    }
+
+                    TaskDialog.Show("Plan Views Created", $"Created {plansCreated} floor plans and {ceilingPlansCreated} ceiling plans.");
+
+                    tx.Commit();
+                    tx.Dispose();
+                }
+            }
+
+            private static ViewFamilyType GetViewFamilyType(Document doc, ViewFamily viewFamily)
+            {
+                FilteredElementCollector collector = new FilteredElementCollector(doc)
+                    .OfClass(typeof(ViewFamilyType));
+
+                foreach (ViewFamilyType viewFamilyType in collector)
+                {
+                    if (viewFamilyType.ViewFamily == viewFamily)
+                    {
+                        return viewFamilyType;
+                    }
+                }
+
+                return null;
+            }
         }
     }
 }
