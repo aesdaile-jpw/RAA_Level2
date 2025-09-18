@@ -47,7 +47,7 @@ namespace RAA_Level2
             openFile.InitialDirectory = @"C:\";
             //openFile.Filter = "csv files (*.csv) |*.csv";
             //openFile.Title = "Select a CSV file";
-            openFile.Filter = "Excel files (*.xlsx;*.xls;*.csv) |*.xlsx;*.xls;*.csv";
+            openFile.Filter = "Excel files (*.xlsx;*.xls) |*.xlsx;*.xls";
             openFile.Title = "Select an Excel file";
 
             if (openFile.ShowDialog() == true)
