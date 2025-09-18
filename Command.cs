@@ -99,9 +99,9 @@ namespace RAA_Level2
 
             // Replace this line:
             // List<string>[] csvData = ReadCSVFile(filePath);
-            // With this line:
-
+            // With this line
             //List<string[]> csvData = ReadCSVFile(filePath);
+
             List<List<string>> csvData = ExcelReader.ReadExcelToList(filePath);
             csvData.RemoveAt(0); // Remove header row
 
