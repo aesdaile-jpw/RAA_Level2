@@ -233,6 +233,7 @@ namespace RAA_Level2
 
         public class ExcelReader
         {
+            // I have used EPPlus from nuget to read Excel files
             public static List<List<string>> ReadExcelToList(string filePath)
             {
                 var data = new List<List<string>>();
